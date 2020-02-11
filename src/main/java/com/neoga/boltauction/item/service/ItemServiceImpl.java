@@ -2,6 +2,8 @@ package com.neoga.boltauction.item.service;
 
 import com.neoga.boltauction.category.domain.Category;
 import com.neoga.boltauction.category.repository.CategoryRepository;
+import com.neoga.boltauction.exception.custom.CCategoryNotFoundException;
+import com.neoga.boltauction.exception.custom.CItemNotFoundException;
 import com.neoga.boltauction.item.domain.Item;
 import com.neoga.boltauction.item.dto.UpdateItemDto;
 import com.neoga.boltauction.item.repository.ItemRepository;
@@ -22,27 +24,13 @@ public class ItemServiceImpl implements ItemService {
 
     @Override
     public Item getItem(Long id) {
-        Optional<Item> optionalItem = itemRepository.findById(id);
-
-        if (!optionalItem.isPresent()) {
-            return null;
-        }
-
-        Item findItem = optionalItem.get();
-
-        return findItem;
+        return itemRepository.findById(id).orElseThrow(CItemNotFoundException::new);
     }
 
     @Override
     public Item deleteItem(Long id) {
-        Optional<Item> optionalItem = itemRepository.findById(id);
-        if (!optionalItem.isPresent()) {
-            return null;
-        }
-
-        Item item = optionalItem.get();
-
-        itemRepository.delete(optionalItem.get());
+        Item item = itemRepository.findById(id).orElseThrow(CItemNotFoundException::new);
+        itemRepository.delete(item);
 
         return item;
     }
@@ -56,7 +44,7 @@ public class ItemServiceImpl implements ItemService {
             Category findCategory = categoryRepository.findById(categoryId).get();
             return itemRepository.findAllByCategoryEquals(pageable, findCategory);
         } else {
-            return null;
+            throw new CCategoryNotFoundException();
         }
     }
 
@@ -80,7 +68,7 @@ public class ItemServiceImpl implements ItemService {
         else if (updateItemDto.getEndDt() != null)
             item.setEndDt(updateItemDto.getEndDt());
         else if (updateItemDto.getCategoryId() != null)
-            item.setCategory(categoryRepository.findById(updateItemDto.getCategoryId()).get());
+            item.setCategory(categoryRepository.findById(updateItemDto.getCategoryId()).orElseThrow(CCategoryNotFoundException::new));
 
         return itemRepository.save(item);
     }

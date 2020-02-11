@@ -2,6 +2,7 @@ package com.neoga.boltauction.item.controller;
 
 import com.neoga.boltauction.category.domain.Category;
 import com.neoga.boltauction.category.service.CategoryService;
+import com.neoga.boltauction.exception.custom.CItemNotFoundException;
 import com.neoga.boltauction.image.service.ImageService;
 import com.neoga.boltauction.item.domain.Item;
 import com.neoga.boltauction.item.dto.InsertItemDto;
@@ -45,10 +46,13 @@ public class ItemController {
     public ResponseEntity getItems(@PathVariable(name = "category-id") Long categoryId, Pageable pageable,
                                    PagedResourcesAssembler<ItemDto> assembler) {
 
-        Page<Item> itemPage = itemService.getItems(categoryId, pageable);
+        Page<Item> itemPage;
 
-        if (itemPage == null)
+        try {
+            itemPage = itemService.getItems(categoryId, pageable);
+        } catch (CItemNotFoundException e) {
             return ResponseEntity.noContent().build();
+        }
 
         Page<ItemDto> itemDtoPage = itemPage.map(item -> {
             ItemDto itemDto = modelMapper.map(item, ItemDto.class);
@@ -68,18 +72,14 @@ public class ItemController {
     @PostMapping
     public ResponseEntity insertItem(@Valid InsertItemDto insertItemDto,
                                      MultipartFile... files) throws IOException {
-        Item item = new Item();
 
         modelMapper.getConfiguration().setMatchingStrategy(MatchingStrategies.STRICT);
-        item = modelMapper.map(insertItemDto, Item.class);
+        Item item = modelMapper.map(insertItemDto, Item.class);
         item.setName(insertItemDto.getItemName());
         item.setCreateDt(LocalDateTime.now());
 
-        Optional<Category> optionalCategory = categoryService.getCategory(insertItemDto.getCategoryId());
-        if (!optionalCategory.isPresent())
-            return ResponseEntity.noContent().build();
-        item.setCategory(optionalCategory.get());
-
+        Category findCategory = categoryService.getCategory(insertItemDto.getCategoryId());
+        item.setCategory(findCategory);
 
         Item saveItem = itemService.saveItem(item);
         imageService.saveItemImages(saveItem.getId(), files);
@@ -105,10 +105,13 @@ public class ItemController {
     @GetMapping("/{item-id}")
     public ResponseEntity getItem(@PathVariable(name = "item-id") Long id) {
 
-        Item findItem = itemService.getItem(id);
+        Item findItem;
 
-        if (findItem == null)
+        try {
+            findItem = itemService.getItem(id);
+        } catch (CItemNotFoundException e) {
             return ResponseEntity.noContent().build();
+        }
 
         ItemDto itemDto = modelMapper.map(findItem, ItemDto.class);
         itemDto.setItemId(findItem.getId());
@@ -126,29 +129,33 @@ public class ItemController {
     @DeleteMapping("/{item-id}")
     public ResponseEntity deleteItem(@PathVariable(name = "item-id") Long id) {
 
-       Item deleteItem = itemService.deleteItem(id);
+        try {
+            itemService.deleteItem(id);
+        } catch (CItemNotFoundException e) {
+            return ResponseEntity.noContent().build();
+        }
 
-       if (deleteItem == null)
-           return ResponseEntity.noContent().build();
-
-       return ResponseEntity.ok().build();
+        return ResponseEntity.ok().build();
     }
 
     @PutMapping("/{item-id}")
     public ResponseEntity updateItem(@PathVariable(name = "item-id") Long id,
                                      @Valid UpdateItemDto updateItemDto,
                                      MultipartFile... files) throws IOException {
-        Item findItem = itemService.getItem(id);
+        Item findItem;
 
-        if (findItem == null)
+        try {
+            findItem = itemService.getItem(id);
+        } catch (CItemNotFoundException e) {
             return ResponseEntity.noContent().build();
+        }
 
         Item updateItem = itemService.updateItem(findItem, updateItemDto);
         imageService.updateItemImages(id, files);
 
-        ItemDto itemDto = modelMapper.map(findItem, ItemDto.class);
+        ItemDto itemDto = modelMapper.map(updateItem, ItemDto.class);
         EntityModel entityModel = new EntityModel(itemDto);
-        entityModel.add(linkTo(ItemController.class).slash(findItem.getId()).withSelfRel());
+        entityModel.add(linkTo(ItemController.class).slash(updateItem.getId()).withSelfRel());
         entityModel.add(new Link("/").withRel("profile"));
 
         return ResponseEntity.ok(entityModel);
